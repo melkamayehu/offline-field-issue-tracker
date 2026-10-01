@@ -1,10 +1,12 @@
 const express = require("express");
+const cors = require("cors");
 const { randomUUID } = require("crypto");
 const pool = require("./db");
 
 const app = express();
 const PORT = 5000;
 
+app.use(cors());
 app.use(express.json());
 
 app.get("/", (req, res) => {
@@ -22,6 +24,7 @@ const validTransitions = {
   Rejected: [],
 };
 
+// Create a report
 app.post("/api/reports", async (req, res) => {
   const {
     id,
@@ -79,7 +82,7 @@ app.post("/api/reports", async (req, res) => {
       return res.status(200).json(existing.rows[0]);
     }
 
-    // Only create history for a newly created report
+    // Record creation in history
     await pool.query(
       `
       INSERT INTO report_history (
@@ -110,6 +113,7 @@ app.post("/api/reports", async (req, res) => {
   }
 });
 
+// Get all reports
 app.get("/api/reports", async (req, res) => {
   try {
     const result = await pool.query(
@@ -126,6 +130,7 @@ app.get("/api/reports", async (req, res) => {
   }
 });
 
+// Change report status
 app.patch("/api/reports/:id/status", async (req, res) => {
   const { id } = req.params;
   const { status: newStatus } = req.body;
@@ -203,6 +208,73 @@ app.patch("/api/reports/:id/status", async (req, res) => {
   }
 });
 
+// Get report history
+app.get("/api/reports/:id/history", async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    const result = await pool.query(
+      `
+      SELECT *
+      FROM report_history
+      WHERE report_id = $1
+      ORDER BY created_at ASC
+      `,
+      [id]
+    );
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      error: "Failed to fetch report history.",
+    });
+  }
+});
+
+// Add a history event
+app.post("/api/reports/:id/history", async (req, res) => {
+  const { id } = req.params;
+  const { event_type, message } = req.body;
+
+  if (!event_type) {
+    return res.status(400).json({
+      error: "event_type is required.",
+    });
+  }
+
+  try {
+    const result = await pool.query(
+      `
+      INSERT INTO report_history (
+        id,
+        report_id,
+        event_type,
+        message
+      )
+      VALUES ($1, $2, $3, $4)
+      RETURNING *
+      `,
+      [
+        randomUUID(),
+        id,
+        event_type,
+        message || null,
+      ]
+    );
+
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error(error);
+
+    res.status(500).json({
+      error: "Failed to record history.",
+    });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
 });
+
