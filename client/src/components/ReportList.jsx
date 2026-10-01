@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { getReports, saveReport } from "../db/database";
 
-const API_URL = "http://localhost:5000/api/reports";
+const API_URL =
+  "https://offline-field-issue-tracker-1.onrender.com/api/reports";
 
 const validTransitions = {
   Draft: ["Submitted"],
